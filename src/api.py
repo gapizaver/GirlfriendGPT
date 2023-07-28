@@ -1,4 +1,4 @@
-"""Scaffolding to host your LangChain Chatbot on Steamship and connect it to Telegram."""
+import re
 from typing import List, Optional, Type
 
 from pydantic import Field
@@ -14,23 +14,18 @@ from steamship.agents.schema import Agent, EmitFunc, Metadata
 from steamship.agents.schema.tool import AgentContext, Tool
 from steamship.agents.service.agent_service import AgentService
 from steamship.agents.tools.search import SearchTool
-from steamship.cli.cli import run
+from steamship.agents.tools.speech_generation import GenerateSpeechTool
 from steamship.invocable import Config
+from steamship.invocable.mixins.indexer_pipeline_mixin import IndexerPipelineMixin
 
-from personalities import get_personality
 from tools.selfie import SelfieTool
 from tools.video_message import VideoMessageTool
-from utils import clean_text
 
 TEMPERATURE = 0.7
 MAX_FREE_MESSAGES = 5
 
 
 class GirlFriendGPTConfig(TelegramTransportConfig):
-    bot_token: str = Field(
-        description="Your telegram bot token.\nLearn how to create one here: "
-        "https://github.com/EniasCailliau/GirlfriendGPT/blob/main/docs/register-telegram-bot.md"
-    )
     elevenlabs_api_key: str = Field(
         default="", description="Optional API KEY for ElevenLabs Voice Bot"
     )
@@ -40,20 +35,26 @@ class GirlFriendGPTConfig(TelegramTransportConfig):
     chat_ids: str = Field(
         default="", description="Comma separated list of whitelisted chat_id's"
     )
-    personality: str = Field(
-        description="The personality you want to deploy. Pick one of the personalities listed here: "
-        "https://github.com/EniasCailliau/GirlfriendGPT/tree/main/src/personalities"
-    )
+    name: str = Field(description="The name of your companion")
+    byline: str = Field(description="The byline of your companion")
+    identity: str = Field(description="The identity of your companion")
+    behavior: str = Field(description="The behavior of your companion")
     use_gpt4: bool = Field(
         True,
         description="If True, use GPT-4. Use GPT-3.5 if False. "
-        "GPT-4 generates better responses at higher cost and latency.",
+                    "GPT-4 generates better responses at higher cost and latency.",
     )
 
 
-SYSTEM_PROMPT = """You are Sacha and are currently talking to Jessica.
- 
-{personality}
+SYSTEM_PROMPT = """You are {name}, {byline}.
+
+Who you are:
+
+{identity}
+
+How you behave:
+
+{behavior}
 
 NOTE: Some functions return images, video, and audio files. These multimedia files will be represented in messages as
 UUIDs for Steamship Blocks. When responding directly to a user, you SHOULD print the Steamship Blocks for the images,
@@ -70,7 +71,11 @@ class GirlfriendGPT(AgentService):
     """Deploy companions and connect them to Telegram."""
 
     config: GirlFriendGPTConfig
-    USED_MIXIN_CLASSES = [TelegramTransport, SteamshipWidgetTransport]
+    USED_MIXIN_CLASSES = [
+        TelegramTransport,
+        SteamshipWidgetTransport,
+        IndexerPipelineMixin,
+    ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -81,7 +86,10 @@ class GirlfriendGPT(AgentService):
             llm=ChatOpenAI(self.client, model_name=model_name, temperature=TEMPERATURE),
         )
         self._agent.PROMPT = SYSTEM_PROMPT.format(
-            personality=get_personality(self.config.personality).format()
+            name=self.config.name,
+            byline=self.config.byline,
+            identity=self.config.identity,
+            behavior=self.config.behavior,
         )
 
         # This Mixin provides HTTP endpoints that connects this agent to a web client
@@ -91,7 +99,7 @@ class GirlfriendGPT(AgentService):
             )
         )
 
-        # This Mixin provides HTTP endpoints that connects this agent to a web client
+        # This Mixin provides HTTP endpoints that connects this agent to Telegram
         self.add_mixin(
             TelegramTransport(
                 client=self.client,
@@ -100,53 +108,26 @@ class GirlfriendGPT(AgentService):
                 config=self.config,
             )
         )
-
-    def limit_exceeded(self, context: AgentContext):
-        if hasattr(self.config, "chat_ids") and self.config.chat_ids:
-            if len(context.chat_history.messages) / 2 > MAX_FREE_MESSAGES:
-
-                for func in context.emit_funcs:
-                    func(
-                        [
-                            Block(text="Thanks for trying out SachaGPT!"),
-                            Block(
-                                text="Please deploy your own version GirlfriendGPT to continue chatting."
-                            ),
-                            Block(
-                                text="Learn how on: https://github.com/EniasCailliau/GirlfriendGPT/"
-                            ),
-                        ],
-                        context.metadata,
-                    )
-                return True
-        return False
+        # This Mixin provides HTTP endpoints that connects this agent to Telegram
+        self.add_mixin(IndexerPipelineMixin(client=self.client, invocable=self))
 
     def run_agent(self, agent: Agent, context: AgentContext):
         """Override run-agent to patch in audio generation as a finishing step for text output."""
-        if self.limit_exceeded(context):
-            return
-
         speech = self.voice_tool()
-
-        def to_speech_if_text(block: Block):
-            if not block.is_text():
-                return block
-
-            output_blocks = speech.run([block], context)
-            return output_blocks[0]
 
         # Note: EmitFunc is Callable[[List[Block], Metadata], None]
         def wrap_emit(emit_func: EmitFunc):
             def wrapper(blocks: List[Block], metadata: Metadata):
                 for block in blocks:
                     if block.is_text():
-                        text = clean_text(block.text)
+                        text = re.sub(r"^\W+", "", block.text.strip())
                         if text:
                             block.text = text
                             emit_func([block], metadata)
                             if speech:
                                 audio_block = speech.run([block], context)[0]
                                 audio_block.set_public_data(True)
+                                audio_block.url = audio_block.raw_data_url
                                 emit_func([audio_block], metadata)
                     else:
                         emit_func([block], metadata)
@@ -163,12 +144,9 @@ class GirlfriendGPT(AgentService):
 
     def voice_tool(self) -> Optional[Tool]:
         """Return tool to generate spoken version of output text."""
-        # speech = GenerateSpeechTool()
-        # speech.generator_plugin_config = dict(
-        #     voice_id=self.config.elevenlabs_voice_id,
-        #     elevenlabs_api_key=self.config.elevenlabs_api_key,
-        # )
-        return None
-
-
-run
+        speech = GenerateSpeechTool()
+        speech.generator_plugin_config = dict(
+            voice_id=self.config.elevenlabs_voice_id,
+            elevenlabs_api_key=self.config.elevenlabs_api_key,
+        )
+        return speech
