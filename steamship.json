@@ -1,7 +1,7 @@
 {
 	"type": "package",
-	"handle": "girlfriend-gpt-bot",
-	"version": "2.2.0",
+	"handle": "gapi-test-bot",
+	"version": "1.0.1",
 	"description": "",
 	"author": "",
 	"entrypoint": "Unused",
