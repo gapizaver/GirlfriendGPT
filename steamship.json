@@ -1,11 +1,11 @@
 {
 	"type": "package",
-	"handle": "gapi-test-bot",
-	"version": "1.0.1",
+	"handle": "gapi-private-bot",
+	"version": "1.0.3post1",
 	"description": "",
 	"author": "",
 	"entrypoint": "Unused",
-	"public": true,
+	"public": false,
 	"plugin": null,
 	"build_config": {
 		"ignore": [
@@ -62,7 +62,7 @@
 		"use_gpt4": {
 			"type": "boolean",
 			"description": "If True, use GPT-4. Use GPT-3.5 if False. GPT-4 generates better responses at higher cost and latency.",
-			"default": true
+			"default": false
 		}
 	},
 	"steamshipRegistry": {

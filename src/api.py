@@ -26,11 +26,15 @@ MAX_FREE_MESSAGES = 5
 
 
 class GirlFriendGPTConfig(TelegramTransportConfig):
+    bot_token: str = Field(
+        default = "", 
+        description="The secret token for your Telegram bot")
     elevenlabs_api_key: str = Field(
-        default="", description="Optional API KEY for ElevenLabs Voice Bot"
+        default = "", description="Optional API KEY for ElevenLabs Voice Bot"
     )
     elevenlabs_voice_id: str = Field(
-        default="", description="Optional voice_id for ElevenLabs Voice Bot"
+        default="",
+        description="Optional voice_id for ElevenLabs Voice Bot"
     )
     chat_ids: str = Field(
         default="", description="Comma separated list of whitelisted chat_id's"
@@ -40,7 +44,7 @@ class GirlFriendGPTConfig(TelegramTransportConfig):
     identity: str = Field(description="The identity of your companion")
     behavior: str = Field(description="The behavior of your companion")
     use_gpt4: bool = Field(
-        True,
+        False,
         description="If True, use GPT-4. Use GPT-3.5 if False. "
                     "GPT-4 generates better responses at higher cost and latency.",
     )
