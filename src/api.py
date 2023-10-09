@@ -21,8 +21,6 @@ from steamship.invocable.mixins.indexer_pipeline_mixin import IndexerPipelineMix
 from tools.selfie import SelfieTool
 from tools.video_message import VideoMessageTool
 
-TEMPERATURE = 0.7
-MAX_FREE_MESSAGES = 5
 
 
 class GirlFriendGPTConfig(TelegramTransportConfig):
@@ -36,39 +34,19 @@ class GirlFriendGPTConfig(TelegramTransportConfig):
         default="",
         description="Optional voice_id for ElevenLabs Voice Bot"
     )
-    chat_ids: str = Field(
-        default="", description="Comma separated list of whitelisted chat_id's"
-    )
-    name: str = Field(description="The name of your companion")
-    byline: str = Field(description="The byline of your companion")
-    identity: str = Field(description="The identity of your companion")
+    #name: str = Field(description="The name of your companion")
+    #byline: str = Field(description="The byline of your companion")
+    #identity: str = Field(description="The identity of your companion")
     behavior: str = Field(description="The behavior of your companion")
+    temperature: float = Field(
+        default=0.7,
+        description="parameter in algorithms used to control the randomness of predictions in AI"
+    )
     use_gpt4: bool = Field(
         False,
         description="If True, use GPT-4. Use GPT-3.5 if False. "
                     "GPT-4 generates better responses at higher cost and latency.",
     )
-
-
-SYSTEM_PROMPT = """You are {name}, {byline}.
-
-Who you are:
-
-{identity}
-
-How you behave:
-
-{behavior}
-
-NOTE: Some functions return images, video, and audio files. These multimedia files will be represented in messages as
-UUIDs for Steamship Blocks. When responding directly to a user, you SHOULD print the Steamship Blocks for the images,
-video, or audio as follows: `Block(UUID for the block)`.
-
-Example response for a request that generated an image:
-Here is the image you requested: Block(288A2CA1-4753-4298-9716-53C1E42B726B).
-
-Only use the functions you have been provided with.
-"""
 
 
 class GirlfriendGPT(AgentService):
@@ -89,12 +67,7 @@ class GirlfriendGPT(AgentService):
             tools=[SearchTool(), SelfieTool(), VideoMessageTool(self.client)],
             llm=ChatOpenAI(self.client, model_name=model_name, temperature=TEMPERATURE),
         )
-        self._agent.PROMPT = SYSTEM_PROMPT.format(
-            name=self.config.name,
-            byline=self.config.byline,
-            identity=self.config.identity,
-            behavior=self.config.behavior,
-        )
+        self._agent.PROMPT = self.config.behavior
 
         # This Mixin provides HTTP endpoints that connects this agent to a web client
         self.add_mixin(

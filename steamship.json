@@ -1,7 +1,7 @@
 {
 	"type": "package",
 	"handle": "gapi-private-bot",
-	"version": "1.0.3post1",
+	"version": "1.0.5",
 	"description": "",
 	"author": "",
 	"entrypoint": "Unused",
@@ -34,30 +34,15 @@
 			"description": "Optional voice_id for ElevenLabs Voice Bot",
 			"default": ""
 		},
-		"chat_ids": {
-			"type": "string",
-			"description": "Comma separated list of whitelisted chat_id's",
-			"default": ""
-		},
-		"name": {
-			"type": "string",
-			"description": "The name of your companion",
-			"default": null
-		},
-		"byline": {
-			"type": "string",
-			"description": "The byline of your companion",
-			"default": null
-		},
-		"identity": {
-			"type": "string",
-			"description": "The identity of your companion",
-			"default": null
-		},
 		"behavior": {
 			"type": "string",
 			"description": "The behavior of your companion",
 			"default": null
+		},
+		"temperature": {
+			"type": "number",
+			"description": "parameter in algorithms used to control the randomness of predictions in AI",
+			"default": 0.7
 		},
 		"use_gpt4": {
 			"type": "boolean",
